@@ -1,0 +1,46 @@
+# Job Application Profile
+# Edit every field below. The automation script reads this file.
+# Lines starting with # are comments.
+
+# === CONTACT ===
+first_name = 
+last_name = 
+email = 
+phone = 
+location_city = 
+
+# === ONLINE PROFILES ===
+linkedin = 
+website = 
+github = 
+
+# === WORK AUTHORIZATION ===
+# "Yes" or "No"
+authorized_us = 
+needs_sponsorship = 
+
+# === EDUCATION ===
+university = 
+degree = 
+major = 
+minor = 
+gpa = 
+graduation_date = 
+
+# === CURRENT EMPLOYMENT ===
+current_employer = 
+current_title = 
+
+# === EEO / DEMOGRAPHICS (voluntary, leave blank to skip) ===
+gender = 
+hispanic_latino = 
+race = 
+veteran = 
+disability = 
+
+# === FILES ===
+# Path to your resume PDF (relative to this config/ directory)
+resume_path = resume.pdf
+
+# Path to cover letter PDF (optional, can be overridden per-job)
+# cover_letter_path = 

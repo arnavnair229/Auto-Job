@@ -1,0 +1,23 @@
+# Config (contains personal info)
+config/profile.txt
+config/resume.pdf
+config/*.pdf
+
+# Output (keep directory, ignore contents)
+output/*
+!output/.gitkeep
+*.png
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
