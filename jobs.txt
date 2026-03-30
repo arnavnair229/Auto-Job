@@ -1,15 +1,10 @@
-# Job URLs - one per line
-# Lines starting with # are comments / notes
-# Greenhouse URLs will be auto-filled. Others require manual application.
+# Job URLs — one per line. Run: python scripts/prep.py --list
+# Lines starting with # are comments.
 
-# Schonfeld - Systematic Portfolio Strategy and Risk Analyst (Greenhouse)
+# ── Active ────────────────────────────────────────────────────────────────────
+
 https://job-boards.greenhouse.io/schonfeld/jobs/7402926
 
-# BofA - Equity Quant Portfolio Trading (Workday - manual)
-https://careers.bankofamerica.com/en-us/job-detail/26008745/aso-equity-quant-portfolio-trading-new-york-new-york-united-states
-
-# BofA - Systematic Trading Strategist (Workday - manual)
-https://careers.bankofamerica.com/en-us/job-detail/26011479/analyst-associate-systematic-trading-strategist-new-york-new-york-united-states
-
-# Formation Bio - Data Scientist Portfolio Optimization (BioSpace - manual)
-https://jobs.biospace.com/job/3038940/
+# https://careers.bankofamerica.com/en-us/job-detail/26008745/aso-equity-quant-portfolio-trading-new-york-new-york-united-states
+# https://careers.bankofamerica.com/en-us/job-detail/26011479/analyst-associate-systematic-trading-strategist-new-york-new-york-united-states
+# https://jobs.biospace.com/job/3038940/

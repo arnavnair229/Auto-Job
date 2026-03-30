@@ -1,136 +1,88 @@
-# Job Auto-Apply
+# Job Application Prep
 
-Automated job application tool for Greenhouse-based job postings. Uses
-Playwright to fill and submit applications, with pre-generated cover letters
-and fit analysis powered by Claude.
+Research a job posting, get a fit analysis, humanized cover letter, and study
+guide — all in one command. Uses Claude with live web search.
+
+For form filling, use [Simplify](https://simplify.jobs) (browser extension).
 
 ## How it works
 
-1. You put job URLs in `jobs.txt` (one per line)
-2. The script fetches each posting, fills in your profile data, attaches
-   your resume, and optionally attaches a cover letter
-3. For Greenhouse jobs: fully automated submit
-4. For non-Greenhouse jobs (Workday, Taleo, etc.): generates an application
-   brief with cover letter that you fill in manually
+```
+python scripts/prep.py --url "https://job-boards.greenhouse.io/..."
+```
+
+The script:
+1. Fetches the job posting
+2. Searches for recent company news (last 6 months — real specifics, not
+   mission-statement language)
+3. Maps your resume against the requirements
+4. Writes a humanized cover letter grounded in your actual experience
+5. Builds a study guide for the interview
+6. Saves everything to `covers/` and `output/`
 
 ## Setup
 
-### Prerequisites
-
-- Python 3.10+
-- Node.js 18+ (for Playwright)
-- A resume PDF in the `config/` directory
-
-### Install
-
 ```bash
-# Clone the repo
-git clone <your-repo-url>
+# Clone
+git clone https://github.com/arnavnair229/Auto-Job
 cd job-auto-apply
 
-# Install Python dependencies
-pip install playwright beautifulsoup4 requests
+# Install
+pip install -r requirements.txt
 
-# Install Playwright browsers
-playwright install chromium
-
-# (Optional) If you want Claude-generated cover letters via CLI:
-# Install Claude Code: npm install -g @anthropic-ai/claude-code
+# Set your API key
+export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-### Configure your profile
+Drop your resume PDF at `config/resume.pdf` (gitignored, never pushed).
+Update `skill/references/resume_context.md` with your experience.
 
-Edit `config/profile.txt` with your information. Every field matters.
-The script reads this file to fill application forms.
+## Usage
 
 ```bash
-cp config/profile.txt.example config/profile.txt
-# Edit config/profile.txt with your details
-```
-
-Place your resume PDF at `config/resume.pdf`.
-
-### Add jobs
-
-Add Greenhouse job URLs to `jobs.txt`, one per line:
-
-```
-https://job-boards.greenhouse.io/schonfeld/jobs/7402926
-https://job-boards.greenhouse.io/citadel/jobs/1234567
-```
-
-Lines starting with `#` are ignored (use for notes or skipped jobs).
-
-### Run
-
-```bash
-# Dry run (fills forms but does NOT submit)
-python scripts/apply.py --dry-run
-
-# Live run (actually submits)
-python scripts/apply.py
-
 # Single job
-python scripts/apply.py --url "https://job-boards.greenhouse.io/company/jobs/12345"
+python scripts/prep.py --url "https://..."
 
-# With cover letter directory
-python scripts/apply.py --covers output/
+# All jobs in jobs.txt
+python scripts/prep.py --list
+
+# Skip cover letter (just the brief)
+python scripts/prep.py --url "https://..." --no-cl
 ```
 
-## Directory structure
+## Output
+
+```
+covers/
+  CoverLetter_{Company}_{timestamp}.txt   ← convert to PDF before uploading
+output/
+  {Company}_{timestamp}_brief.md          ← full brief: fit matrix, gaps, study guide
+```
+
+## Structure
 
 ```
 job-auto-apply/
-├── README.md
-├── jobs.txt                  # Your job URLs (one per line)
-├── config/
-│   ├── profile.txt           # Your personal info (you edit this)
-│   ├── profile.txt.example   # Template for friends
-│   └── resume.pdf            # Your resume (you add this)
+├── jobs.txt                          # Job URLs (one per line, # = comment)
 ├── scripts/
-│   ├── apply.py              # Main automation script
-│   ├── greenhouse.py         # Greenhouse form filler
-│   └── parse_profile.py      # Profile parser
-└── output/
-│   └── (cover letters and briefs go here)
+│   └── prep.py                       # The script
+├── config/
+│   ├── profile.txt                   # Your info (gitignored)
+│   ├── profile.txt.example           # Template
+│   └── resume.pdf                    # Your resume (gitignored)
+├── covers/                           # Generated cover letters (gitignored)
+├── output/                           # Full briefs (gitignored)
 └── skill/
-    ├── SKILL.md              # Claude skill for cover letters + fit analysis
+    ├── SKILL.md                      # Claude Code skill (manual use)
     └── references/
-        ├── profile.md        # Claude-readable profile (auto-generated)
-        └── resume_context.md # Structured resume data
+        ├── profile.md
+        └── resume_context.md         # Structured resume — edit this
 ```
 
-## For friends / other users
+## For a friend
 
-1. Fork or clone this repo
-2. Replace `config/profile.txt` with your own info
-3. Replace `config/resume.pdf` with your resume
-4. Edit `skill/references/resume_context.md` with your own experience
-5. Edit `skill/references/profile.md` to match your profile.txt
-6. Add your job URLs to `jobs.txt`
-7. Run `python scripts/apply.py --dry-run` to test
-
-## Limitations
-
-- Only automates Greenhouse applications (single-page forms)
-- Does NOT handle: Workday, Taleo, iCIMS, Lever login-required portals,
-  or any multi-step authenticated flows
-- Cover letter generation requires Claude Code CLI or manual use of the
-  Claude skill in claude.ai
-- The script runs headful (visible browser) by default so you can watch
-  and intervene if something goes wrong
-- Some Greenhouse boards have custom fields not covered by the default
-  mapping. The script will skip those and log them for you to fill manually.
-
-## Generating cover letters with Claude
-
-If you have Claude Code installed:
-
-```bash
-# Generate a cover letter for a specific role
-claude -p "Read the skill at skill/SKILL.md then generate a cover letter
-for this role: <URL>. Use my profile from skill/references/profile.md
-and resume from skill/references/resume_context.md."
-```
-
-Or use the skill in claude.ai by installing `job-apply-prep.skill`.
+1. Fork the repo
+2. Copy `config/profile.txt.example` to `config/profile.txt` and fill it in
+3. Drop your `resume.pdf` in `config/`
+4. Rewrite `skill/references/resume_context.md` with your experience
+5. Set `ANTHROPIC_API_KEY` and run

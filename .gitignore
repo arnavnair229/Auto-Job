@@ -1,12 +1,13 @@
-# Config (contains personal info)
+# Personal info — never commit
 config/profile.txt
 config/resume.pdf
 config/*.pdf
 
-# Output (keep directory, ignore contents)
+# Generated output — local only
+covers/*
+!covers/.gitkeep
 output/*
 !output/.gitkeep
-*.png
 
 # Python
 __pycache__/
