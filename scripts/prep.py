@@ -49,11 +49,14 @@ OUTPUT_DIR = ROOT / "output"
 COVERS_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# ── system prompt ─────────────────────────────────────────────────────────────
+# ── system prompts ────────────────────────────────────────────────────────────
 
-def build_system_prompt() -> str:
+CANDIDATE_NAME = "Arnav Nair"
+
+def build_research_system_prompt() -> str:
+    """Opus: research the role and produce the brief (no cover letter)."""
     resume = RESUME_CONTEXT.read_text() if RESUME_CONTEXT.exists() else "(no resume context found)"
-    return f"""You are a job application strategist for a quantitative finance professional.
+    return f"""You are a job application strategist for a quantitative finance professional named {CANDIDATE_NAME}.
 Your job is to produce a structured application brief for any role the user gives you.
 
 ## Candidate Resume Context
@@ -82,44 +85,69 @@ Explain in 2-3 sentences.
 ### 5. Gaps and How to Address Them
 Honest list. If there's no adjacent experience, say so. Don't spin.
 
-### 6. Cover Letter
-A full cover letter, 250-400 words. Structure:
-- Opening: state the role, one specific company fact from your research (NOT generic mission-statement
-  language). No "I am writing to express my interest."
-- Body 1: strongest relevant experience mapped to the role's primary responsibility. Name the tool,
-  model, or result. Source everything from resume context.
-- Body 2: second angle of fit — different skill dimension or side project.
-- Closing: what you want to do in the role. Concrete next step, no "I look forward to hearing from you."
-
-Writing rules (non-negotiable):
-- No em dashes anywhere
-- No "I am passionate about" or "I am excited to"
-- No "leverage", "utilize", "spearhead", "drive", "foster", "impactful"
-- No rule-of-three constructions
-- No sentences starting with "Furthermore", "Moreover", "Additionally"
-- No generic closers
-- Every claim must trace back to the resume context. If you can't source it, don't write it.
-- Write like a real 22-year-old quant writing a professional email, not a career-center template.
-
-### 7. Study Guide
+### 6. Study Guide
 What to review before a phone screen or interview for this specific role.
 Organize by topic (e.g., "Portfolio risk metrics", "Factor models", "Python/SQL").
 3-5 bullets per topic. Be specific — name the actual concepts, formulas, or tools.
 
-### 8. "Why This Role" Talking Points
+### 7. "Why This Role" Talking Points
 2-3 sentences the candidate can use in a recruiter screen or "why us" field.
 Ground these in something specific from your company research. Sounds like a real person.
 
-### 9. Red Flags / Honest Assessment
+### 8. Red Flags / Honest Assessment
 - Is the role too senior?
 - Missing credential (MS/PhD required)?
 - Geographic mismatch?
 - Domain outside experience?
 - Any other reason this might not be worth the time?
 
-### 10. Recommendation
+### 9. Recommendation
 One line: Apply / Apply with caveats / Skip — and why.
 """
+
+
+def build_cl_system_prompt() -> str:
+    """Sonnet: write the cover letter using research context."""
+    resume = RESUME_CONTEXT.read_text() if RESUME_CONTEXT.exists() else "(no resume context found)"
+    return f"""You are a cover letter writer for {CANDIDATE_NAME}, a quantitative finance professional.
+You will receive a job posting, company research, and a fit analysis. Your only job is to write
+a single cover letter — nothing else.
+
+## Candidate Resume Context
+
+{resume}
+
+## Cover Letter Requirements
+
+- Sign off as: {CANDIDATE_NAME}
+- Length: 250-400 words. Not a word more.
+- Structure:
+  1. Opening (2-3 sentences): state the role, reference ONE specific recent company fact
+     from the research (fund performance, a product launch, a leadership change, a deal).
+     NOT generic mission-statement language. No "I am writing to express my interest."
+  2. Body paragraph 1 (3-4 sentences): strongest relevant experience mapped to the role's
+     primary responsibility. Name the specific tool, model, or result. Pull from resume context only.
+  3. Body paragraph 2 (3-4 sentences): second angle of fit — a different skill dimension,
+     adjacent experience, or relevant project. Ground it in resume context.
+  4. Closing (2-3 sentences): what {CANDIDATE_NAME} wants to do in this role specifically.
+     End with a concrete next step. No "I look forward to the opportunity."
+
+## Non-Negotiable Writing Rules (Blader Humanizer)
+
+These rules exist because AI writing is detectable. Every rule broken makes the letter worse.
+
+- NO em dashes (--) anywhere. Use a comma or period instead.
+- NO "I am passionate about" or "I am excited to" or "I am eager to"
+- NO "leverage", "utilize", "spearhead", "drive", "foster", "impactful", "synergy"
+- NO rule-of-three constructions ("A, B, and C" lists in openers/closers)
+- NO sentences starting with "Furthermore", "Moreover", "Additionally", "In conclusion"
+- NO generic closers like "I look forward to hearing from you" or "I welcome the opportunity"
+- NO fabricated claims. Every statement must trace to the resume context above.
+- Write like a real 22-year-old quant writing a professional email to a hiring manager.
+  Confident, direct, specific. Not a career-center template.
+- After drafting, mentally check: would a human write this sentence? If not, rewrite it.
+
+Output ONLY the cover letter text. No preamble, no "here is the cover letter", no commentary."""
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
@@ -204,48 +232,49 @@ def run_prep(url: str, skip_cl: bool = False) -> None:
     client = anthropic.Anthropic(api_key=api_key)
     company = extract_company_from_url(url)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-
-    user_message = f"""Job posting URL: {url}
-
-Please:
-1. Use web_fetch to retrieve the full job description from that URL.
-2. Use web_search to find 2-3 recent, specific facts about the company
-   (last 6 months: news, product launches, fund performance, leadership changes, etc.).
-   Do NOT use generic mission-statement facts. Find something real and recent.
-3. Produce the full application brief as specified in your instructions.
-{"Note: The user has asked to skip the cover letter for this run." if skip_cl else ""}
-"""
+    total_input = 0
+    total_output = 0
 
     print(f"\n{'='*60}")
     print(f"Prepping: {company}")
     print(f"URL: {url}")
     print(f"{'='*60}\n")
 
-    full_text = []
+    # ── pass 1: Opus — research + brief ──────────────────────────────────────
+    print("[1/2] Opus researching role and building brief...\n")
 
+    research_prompt = f"""Job posting URL: {url}
+
+1. Use web_fetch to retrieve the full job description.
+2. Use web_search to find 2-3 recent specific facts about the company
+   (last 6 months: fund performance, product launches, leadership changes, deals, expansions).
+   Real and recent only — no generic mission-statement language.
+3. Produce the full application brief as specified."""
+
+    brief_chunks = []
     with client.messages.stream(
         model="claude-opus-4-6",
         max_tokens=8000,
         thinking={"type": "adaptive"},
-        system=build_system_prompt(),
+        system=build_research_system_prompt(),
         tools=[
             {"type": "web_search_20260209", "name": "web_search"},
             {"type": "web_fetch_20260209",  "name": "web_fetch"},
         ],
-        messages=[{"role": "user", "content": user_message}],
+        messages=[{"role": "user", "content": research_prompt}],
     ) as stream:
         for event in stream:
-            if event.type == "content_block_delta":
-                if event.delta.type == "text_delta":
-                    chunk = event.delta.text
-                    print(chunk, end="", flush=True)
-                    full_text.append(chunk)
+            if event.type == "content_block_delta" and event.delta.type == "text_delta":
+                chunk = event.delta.text
+                print(chunk, end="", flush=True)
+                brief_chunks.append(chunk)
+        opus_final = stream.get_final_message()
 
-        final = stream.get_final_message()
+    brief = "".join(brief_chunks)
+    total_input  += opus_final.usage.input_tokens
+    total_output += opus_final.usage.output_tokens
 
-    brief = "".join(full_text)
-
-    # ── save full brief ───────────────────────────────────────────────────────
+    # ── save brief ────────────────────────────────────────────────────────────
     brief_path = OUTPUT_DIR / f"{slugify(company)}_{timestamp}_brief.md"
     brief_path.write_text(
         f"# Application Brief: {company}\n"
@@ -256,35 +285,66 @@ Please:
     print(f"\n\n{'='*60}")
     print(f"Brief saved to: {brief_path}")
 
-    # ── extract and save cover letter ─────────────────────────────────────────
-    if not skip_cl:
-        cl_match = re.search(
-            r"#{1,3}\s*6\.\s*Cover Letter\s*\n(.*?)(?=\n#{1,3}\s*7\.|\Z)",
-            brief,
-            re.DOTALL | re.IGNORECASE,
-        )
-        if cl_match:
-            cl_text = cl_match.group(1).strip()
-            cl_base = f"CoverLetter_{slugify(company)}_{timestamp}"
-            # Always save txt as backup
-            cl_path = COVERS_DIR / f"{cl_base}.txt"
-            cl_path.write_text(cl_text)
-            # Save as PDF if reportlab is available
-            if HAS_REPORTLAB:
-                pdf_path = COVERS_DIR / f"{cl_base}.pdf"
-                _save_cover_letter_pdf(cl_text, pdf_path, company)
-                print(f"Cover letter saved to: {pdf_path}")
-            else:
-                print(f"Cover letter saved to: {cl_path}")
-                print("(Install reportlab for auto-PDF: pip install reportlab)")
-        else:
-            print("Note: Could not auto-extract cover letter section. Check the brief file.")
+    if skip_cl:
+        _print_cost(total_input, total_output)
+        return
 
-    # ── usage ─────────────────────────────────────────────────────────────────
-    usage = final.usage
-    input_cost  = usage.input_tokens  * 0.000005
-    output_cost = usage.output_tokens * 0.000025
-    print(f"\nTokens: {usage.input_tokens} in / {usage.output_tokens} out")
+    # ── pass 2: Sonnet — write cover letter ──────────────────────────────────
+    print(f"\n[2/2] Sonnet writing cover letter for {CANDIDATE_NAME}...\n")
+
+    cl_prompt = f"""Job URL: {url}
+
+Here is the research brief from the previous analysis:
+
+{brief}
+
+Using the brief above and your resume context, write the cover letter now."""
+
+    cl_chunks = []
+    with client.messages.stream(
+        model="claude-sonnet-4-6",
+        max_tokens=2000,
+        system=build_cl_system_prompt(),
+        messages=[{"role": "user", "content": cl_prompt}],
+    ) as stream:
+        for event in stream:
+            if event.type == "content_block_delta" and event.delta.type == "text_delta":
+                chunk = event.delta.text
+                print(chunk, end="", flush=True)
+                cl_chunks.append(chunk)
+        sonnet_final = stream.get_final_message()
+
+    cl_text = "".join(cl_chunks).strip()
+    # Ensure name is present in sign-off
+    if CANDIDATE_NAME not in cl_text:
+        cl_text += f"\n\nSincerely,\n{CANDIDATE_NAME}"
+
+    total_input  += sonnet_final.usage.input_tokens
+    total_output += sonnet_final.usage.output_tokens
+
+    # ── save cover letter ─────────────────────────────────────────────────────
+    cl_base = f"CoverLetter_{slugify(company)}_{timestamp}"
+    cl_path = COVERS_DIR / f"{cl_base}.txt"
+    cl_path.write_text(cl_text)
+
+    print(f"\n\n{'='*60}")
+    if HAS_REPORTLAB:
+        pdf_path = COVERS_DIR / f"{cl_base}.pdf"
+        _save_cover_letter_pdf(cl_text, pdf_path, company)
+        print(f"Cover letter saved to: {pdf_path}")
+    else:
+        print(f"Cover letter saved to: {cl_path}")
+        print("(pip install reportlab for auto-PDF)")
+
+    _print_cost(total_input, total_output)
+
+
+def _print_cost(input_tokens: int, output_tokens: int) -> None:
+    # Blended rate: Opus input $5/1M, Sonnet input $3/1M, outputs $25/$15 per 1M
+    # We track combined totals; use Opus rates as a conservative upper bound
+    input_cost  = input_tokens  * 0.000005
+    output_cost = output_tokens * 0.000025
+    print(f"\nTokens: {input_tokens} in / {output_tokens} out")
     print(f"Estimated cost: ${input_cost + output_cost:.4f}")
     print(f"{'='*60}\n")
 
