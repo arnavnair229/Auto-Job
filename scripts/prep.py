@@ -164,10 +164,34 @@ def slugify(text: str) -> str:
 def extract_company_from_url(url: str) -> str:
     from urllib.parse import urlparse
     parsed = urlparse(url)
+    domain = parsed.netloc.lower()
     parts = parsed.path.strip("/").split("/")
-    if "greenhouse" in parsed.netloc and parts:
+
+    if "greenhouse" in domain and parts:
         return parts[0].title()
-    return parsed.netloc.split(".")[0].title()
+
+    # Known domains
+    known = {
+        "bankofamerica": "BofA",
+        "goldmansachs": "GoldmanSachs",
+        "morganstanley": "MorganStanley",
+        "jpmorgan": "JPMorgan",
+        "citadel": "Citadel",
+        "twosigma": "TwoSigma",
+        "deshaw": "DEShaw",
+        "point72": "Point72",
+        "millennium": "Millennium",
+        "hudsonrivertrading": "HRT",
+        "janeststreet": "JaneStreet",
+        "biospace": "BioSpace",
+    }
+    for key, name in known.items():
+        if key in domain:
+            return name
+
+    # Fallback: first meaningful domain segment
+    segment = domain.replace("www.", "").split(".")[0]
+    return segment.title()
 
 
 def run_prep(url: str, skip_cl: bool = False) -> None:
