@@ -29,6 +29,16 @@ except ImportError:
     print("anthropic not installed. Run: pip install anthropic")
     sys.exit(1)
 
+try:
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.enums import TA_LEFT
+    HAS_REPORTLAB = True
+except ImportError:
+    HAS_REPORTLAB = False
+
 # ── paths ────────────────────────────────────────────────────────────────────
 
 ROOT = Path(__file__).parent.parent
@@ -113,6 +123,38 @@ One line: Apply / Apply with caveats / Skip — and why.
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
+
+def _save_cover_letter_pdf(text: str, path: Path, company: str) -> None:
+    """Render a plain-text cover letter to a clean PDF."""
+    doc = SimpleDocTemplate(
+        str(path),
+        pagesize=LETTER,
+        leftMargin=1.1 * inch,
+        rightMargin=1.1 * inch,
+        topMargin=1.0 * inch,
+        bottomMargin=1.0 * inch,
+    )
+    styles = getSampleStyleSheet()
+    body_style = ParagraphStyle(
+        "CLBody",
+        parent=styles["Normal"],
+        fontName="Times-Roman",
+        fontSize=11,
+        leading=16,
+        alignment=TA_LEFT,
+        spaceAfter=10,
+    )
+    story = []
+    for para in text.split("\n\n"):
+        para = para.strip()
+        if not para:
+            continue
+        # Escape special reportlab chars
+        para = para.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        story.append(Paragraph(para, body_style))
+        story.append(Spacer(1, 4))
+    doc.build(story)
+
 
 def slugify(text: str) -> str:
     """Convert text to a safe filename slug."""
@@ -199,10 +241,18 @@ Please:
         )
         if cl_match:
             cl_text = cl_match.group(1).strip()
-            cl_path = COVERS_DIR / f"CoverLetter_{slugify(company)}_{timestamp}.txt"
+            cl_base = f"CoverLetter_{slugify(company)}_{timestamp}"
+            # Always save txt as backup
+            cl_path = COVERS_DIR / f"{cl_base}.txt"
             cl_path.write_text(cl_text)
-            print(f"Cover letter saved to: {cl_path}")
-            print(f"(Convert to PDF before uploading: open in Word/Docs, export as PDF)")
+            # Save as PDF if reportlab is available
+            if HAS_REPORTLAB:
+                pdf_path = COVERS_DIR / f"{cl_base}.pdf"
+                _save_cover_letter_pdf(cl_text, pdf_path, company)
+                print(f"Cover letter saved to: {pdf_path}")
+            else:
+                print(f"Cover letter saved to: {cl_path}")
+                print("(Install reportlab for auto-PDF: pip install reportlab)")
         else:
             print("Note: Could not auto-extract cover letter section. Check the brief file.")
 
@@ -227,14 +277,33 @@ def load_jobs() -> list[str]:
     return urls
 
 
+def convert_to_pdf(txt_path: Path) -> None:
+    """Convert an existing cover letter .txt to .pdf (no API call)."""
+    if not HAS_REPORTLAB:
+        print("reportlab not installed. Run: pip install reportlab")
+        return
+    if not txt_path.exists():
+        print(f"File not found: {txt_path}")
+        return
+    text = txt_path.read_text()
+    pdf_path = txt_path.with_suffix(".pdf")
+    company = txt_path.stem.split("_")[1] if "_" in txt_path.stem else "Unknown"
+    _save_cover_letter_pdf(text, pdf_path, company)
+    print(f"PDF saved: {pdf_path}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Job application prep via Claude API")
-    parser.add_argument("--url",    help="Single job URL to prep")
-    parser.add_argument("--list",   action="store_true", help="Process all URLs in jobs.txt")
-    parser.add_argument("--no-cl",  action="store_true", help="Skip cover letter generation")
+    parser.add_argument("--url",     help="Single job URL to prep")
+    parser.add_argument("--list",    action="store_true", help="Process all URLs in jobs.txt")
+    parser.add_argument("--no-cl",   action="store_true", help="Skip cover letter generation")
+    parser.add_argument("--to-pdf",  help="Convert an existing covers/*.txt to PDF (no API call)",
+                        metavar="FILE")
     args = parser.parse_args()
 
-    if args.list:
+    if args.to_pdf:
+        convert_to_pdf(Path(args.to_pdf))
+    elif args.list:
         urls = load_jobs()
         if not urls:
             print("No URLs found in jobs.txt")
